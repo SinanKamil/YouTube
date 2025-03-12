@@ -1,0 +1,72 @@
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+
+#define BUTTON_PIN 2
+#define BUZZER_PIN 3
+
+LiquidCrystal_I2C lcd(0x27, 16, 2);  // Change to 0x3F if required
+
+bool waitingForReaction = false;
+bool gameStarted = false;
+unsigned long startTime;
+unsigned long reactionStartTime;
+
+void setup() {
+    lcd.begin();
+    lcd.backlight();
+    
+    pinMode(BUTTON_PIN, INPUT_PULLUP);
+    pinMode(BUZZER_PIN, OUTPUT);
+
+    lcd.setCursor(0, 0);
+    lcd.print("Reaction Game!");
+    delay(2000);
+    lcd.clear();
+}
+
+void loop() {
+    if (!waitingForReaction && !gameStarted) {
+        lcd.setCursor(0, 0);
+        lcd.print("Get Ready...");
+        delay(random(2000, 5000)); // Random delay (2-5 sec)
+        
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print("Press NOW!");
+        
+        tone(BUZZER_PIN, 1000, 300);  // Short beep when game starts
+        startTime = millis();
+        waitingForReaction = true;
+        gameStarted = true;
+        reactionStartTime = millis();
+    }
+
+    if (waitingForReaction) {
+        if (digitalRead(BUTTON_PIN) == LOW) {
+            unsigned long reactionTime = millis() - startTime;
+            
+            lcd.clear();
+            lcd.setCursor(0, 0);
+
+            if (millis() - reactionStartTime < 2000) {  // Pressed too early
+                lcd.print("Nice Early! ");
+                lcd.setCursor(0, 1);
+                lcd.print("Your Time: ");
+                lcd.print(reactionTime);
+                lcd.print("ms");
+                tone(BUZZER_PIN, 400, 500);  // Low pitch for early press
+            } else {
+                lcd.print("Your Time: ");
+                lcd.setCursor(0, 1);
+                lcd.print(reactionTime);
+                lcd.print(" ms");
+                tone(BUZZER_PIN, 2000, 300);  // Success beep
+            }
+
+            delay(3000); // Show result for 3 seconds
+            lcd.clear();
+            waitingForReaction = false;
+            gameStarted = false;
+        }
+    }
+}
