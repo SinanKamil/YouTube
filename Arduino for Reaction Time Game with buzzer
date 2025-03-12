@@ -3,6 +3,8 @@
 
 #define BUTTON_PIN 2
 #define BUZZER_PIN 3
+#define RED_PIN 4
+#define GREEN_PIN 5
 
 LiquidCrystal_I2C lcd(0x27, 16, 2);  // Change to 0x3F if required
 
@@ -14,9 +16,11 @@ unsigned long reactionStartTime;
 void setup() {
     lcd.begin();
     lcd.backlight();
-    
+
     pinMode(BUTTON_PIN, INPUT_PULLUP);
     pinMode(BUZZER_PIN, OUTPUT);
+    pinMode(RED_PIN, OUTPUT);
+    pinMode(GREEN_PIN, OUTPUT);
 
     lcd.setCursor(0, 0);
     lcd.print("Reaction Game!");
@@ -28,12 +32,12 @@ void loop() {
     if (!waitingForReaction && !gameStarted) {
         lcd.setCursor(0, 0);
         lcd.print("Get Ready...");
-        delay(random(2000, 5000)); // Random delay (2-5 sec)
+        delay(random(50, 10000)); // Random delay (2-5 sec)
         
         lcd.clear();
         lcd.setCursor(0, 0);
         lcd.print("Press NOW!");
-        
+
         tone(BUZZER_PIN, 1000, 300);  // Short beep when game starts
         startTime = millis();
         waitingForReaction = true;
@@ -44,23 +48,32 @@ void loop() {
     if (waitingForReaction) {
         if (digitalRead(BUTTON_PIN) == LOW) {
             unsigned long reactionTime = millis() - startTime;
-            
+
             lcd.clear();
             lcd.setCursor(0, 0);
 
-            if (millis() - reactionStartTime < 2000) {  // Pressed too early
-                lcd.print("Nice Early! ");
+            if (millis() - reactionStartTime < 200) {  // Pressed too early
+                lcd.print("You're FAST! ");
                 lcd.setCursor(0, 1);
                 lcd.print("Your Time: ");
                 lcd.print(reactionTime);
                 lcd.print("ms");
                 tone(BUZZER_PIN, 400, 500);  // Low pitch for early press
+
+                digitalWrite(RED_PIN, HIGH);  // Red LED ON
+                delay(500);
+                digitalWrite(RED_PIN, LOW);   // Red LED OFF
             } else {
-                lcd.print("Your Time: ");
+                lcd.print("You're SLOW! ");
                 lcd.setCursor(0, 1);
+                lcd.print("Your Time: ");
                 lcd.print(reactionTime);
-                lcd.print(" ms");
+                lcd.print("ms");
                 tone(BUZZER_PIN, 2000, 300);  // Success beep
+
+                digitalWrite(GREEN_PIN, HIGH);  // Green LED ON
+                delay(500);
+                digitalWrite(GREEN_PIN, LOW);   // Green LED OFF
             }
 
             delay(3000); // Show result for 3 seconds
