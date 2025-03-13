@@ -1,0 +1,73 @@
+#include <ESP8266WiFi.h>
+#include <ESP8266WebServer.h>
+
+const char* ssid = "wifiuser";
+const char* password = "wifipass";
+
+ESP8266WebServer server(80);
+
+const int LED_PIN = 5;  // GPIO5 corresponds to D1
+
+
+void setup() {
+    pinMode(LED_PIN, OUTPUT);
+    digitalWrite(LED_PIN, LOW);
+
+    Serial.begin(115200);
+    WiFi.begin(ssid, password);
+
+    Serial.print("Connecting to Wi-Fi");
+    while (WiFi.status() != WL_CONNECTED) {
+        delay(500);
+        Serial.print(".");
+    }
+    
+    Serial.println("\nWi-Fi connected!");
+    Serial.print("IP Address: ");
+    Serial.println(WiFi.localIP());
+
+    // Web server routes
+    server.on("/", HTTP_GET, []() {
+        server.send(200, "text/html", R"rawliteral(
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>ESP8266 LED Controller</title>
+                <style>
+                    body { font-family: Arial; text-align: center; margin-top: 50px; }
+                    .btn { padding: 10px 20px; margin: 5px; cursor: pointer; }
+                    .on { background-color: green; color: white; }
+                    .off { background-color: red; color: white; }
+                </style>
+            </head>
+            <body>
+                <h1>ESP8266 LED Controller</h1>
+                <button class='btn on' onclick="toggleLED('on')">LED ON</button>
+                <button class='btn off' onclick="toggleLED('off')">LED OFF</button>
+                <script>
+                    function toggleLED(state) {
+                        fetch('/' + state);
+                    }
+                </script>
+            </body>
+            </html>
+        )rawliteral");
+    });
+
+    server.on("/on", HTTP_GET, []() {
+        digitalWrite(LED_PIN, HIGH);
+        server.send(200, "text/plain", "LED is ON");
+    });
+
+    server.on("/off", HTTP_GET, []() {
+        digitalWrite(LED_PIN, LOW);
+        server.send(200, "text/plain", "LED is OFF");
+    });
+
+    server.begin();
+    Serial.println("HTTP server started");
+}
+
+void loop() {
+    server.handleClient();
+}
