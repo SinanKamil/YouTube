@@ -6,7 +6,7 @@ const char* password = "passwifi";
 
 ESP8266WebServer server(80);
 
-const int LED_PIN = 5;  // GPIO5 corresponds to D1
+const int LED_PIN = 0;  // GPI0 corresponds to D3
 
 void setup() {
     pinMode(LED_PIN, OUTPUT);
@@ -110,6 +110,7 @@ void setup() {
                 <h1>Welcome to the LED Controller!</h1>
                 <button class="btn on" onclick="toggleLED('on')">Light it Up!</button>
                 <button class="btn off" onclick="toggleLED('off')">Turn it Off!</button>
+                <div id="status" class="status">LED is Off</div>
                 <script>
                     function toggleLED(state) {
                         fetch('/' + state)
