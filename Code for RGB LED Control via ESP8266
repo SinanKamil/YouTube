@@ -1,0 +1,140 @@
+#include <ESP8266WiFi.h>
+#include <ESP8266WebServer.h>
+
+const char* ssid = "wifiuser";
+const char* password = "wifipass";
+
+ESP8266WebServer server(80);
+
+const int RED_PIN = 5;   // GPIO 5 corresponds to D1 on NodeMCU
+const int GREEN_PIN = 4; // GPIO 4 corresponds to D2 on NodeMCU
+const int BLUE_PIN = 0;  // GPIO 0 corresponds to D3 on NodeMCU
+
+
+void setup() {
+    pinMode(RED_PIN, OUTPUT);
+    pinMode(GREEN_PIN, OUTPUT);
+    pinMode(BLUE_PIN, OUTPUT);
+
+    digitalWrite(RED_PIN, LOW);
+    digitalWrite(GREEN_PIN, LOW);
+    digitalWrite(BLUE_PIN, LOW);
+
+    Serial.begin(115200);
+    WiFi.begin(ssid, password);
+
+    Serial.print("Connecting to Wi-Fi");
+    while (WiFi.status() != WL_CONNECTED) {
+        delay(500);
+        Serial.print(".");
+    }
+
+    Serial.println("\nWi-Fi connected!");
+    Serial.print("IP Address: ");
+    Serial.println(WiFi.localIP());
+
+    server.on("/", HTTP_GET, []() {
+        server.send(200, "text/html", R"rawliteral(
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ESP8266 RGB LED Controller</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            text-align: center;
+            margin: 0;
+            padding: 0;
+            background: #333;
+            color: #fff;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+        }
+        h1 {
+            color: #eee;
+            margin-bottom: 20px;
+        }
+        .btn {
+            border: none;
+            padding: 15px 30px;
+            margin: 10px;
+            border-radius: 5px;
+            color: white;
+            font-size: 16px;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        .red {
+            background-color: #ff6347;
+        }
+        .green {
+            background-color: #32cd32;
+        }
+        .blue {
+            background-color: #1e90ff;
+        }
+        .red:hover, .green:hover, .blue:hover {
+            opacity: 0.8;
+        }
+        .status {
+            font-size: 18px;
+            margin-top: 20px;
+            color: #ddd;
+        }
+    </style>
+</head>
+<body>
+    <h1>RGB LED Controller</h1>
+    <button class="btn red" onclick="toggleColor('red')">Red</button>
+    <button class="btn green" onclick="toggleColor('green')">Green</button>
+    <button class="btn blue" onclick="toggleColor('blue')">Blue</button>
+    <div id="status" class="status">LED is Off</div>
+    <script>
+        function toggleColor(color) {
+            fetch('/' + color)
+                .then(response => response.text())
+                .then(text => {
+                    document.getElementById('status').textContent = text;
+                    document.getElementById('status').style.color = color === 'red' ? '#ff6347' : color === 'green' ? '#32cd32' : '#1e90ff';
+                });
+        }
+    </script>
+</body>
+</html>
+
+        )rawliteral");
+    });
+
+    server.on("/red", HTTP_GET, []() {
+        static bool redState = false;
+        redState = !redState;
+        digitalWrite(RED_PIN, redState ? HIGH : LOW);
+        server.send(200, "text/plain", redState ? "Red LED is On" : "Red LED is Off");
+    });
+
+    server.on("/green", HTTP_GET, []() {
+        static bool greenState = false;
+        greenState = !greenState;
+        digitalWrite(GREEN_PIN, greenState ? HIGH : LOW);
+        server.send(200, "text/plain", greenState ? "Green LED is On" : "Green LED is Off");
+    });
+
+    server.on("/blue", HTTP_GET, []() {
+        static bool blueState = false;
+        blueState = !blueState;
+        digitalWrite(BLUE_PIN, blueState ? HIGH : LOW);
+        server.send(200, "text/plain", blueState ? "Blue LED is On" : "Blue LED is Off");
+    });
+
+    server.begin();
+    Serial.println("HTTP server started");
+}
+
+void loop() {
+    server.handleClient();
+}
