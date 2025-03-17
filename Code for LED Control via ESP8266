@@ -1,143 +1,180 @@
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
+#include <LiquidCrystal_I2C.h>  // Include the LCD library
 
-const char* ssid = "userwifi";
-const char* password = "passwifi";
+// Wi-Fi Setup
+const char* ssid = "Kamil's House";
+const char* password = "Kamil987@";
 
 ESP8266WebServer server(80);
 
-const int LED_PIN = 0;  // GPI0 corresponds to D3
+// LCD Setup (adjust the I2C address and dimensions as necessary)
+LiquidCrystal_I2C lcd(0x27, 16, 2); // I2C address, width, and height
+
+// Game Variables
+bool gameActive = false;
+int score = 0;
 
 void setup() {
-    pinMode(LED_PIN, OUTPUT);
-    digitalWrite(LED_PIN, LOW);
+    Serial.begin(115200);  // Start serial communication
 
-    Serial.begin(115200);
+    // Initialize LCD
+    lcd.begin();  // Set up the LCD's number of columns and rows
+    lcd.backlight();    // Turn on the backlight
+
     WiFi.begin(ssid, password);
-
     Serial.print("Connecting to Wi-Fi");
     while (WiFi.status() != WL_CONNECTED) {
         delay(500);
-        Serial.print("...");
+        Serial.print(".");
     }
 
     Serial.println("\nWi-Fi connected!");
     Serial.print("IP Address: ");
     Serial.println(WiFi.localIP());
 
+    // Display "Start" message on LCD
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Mario's Epic Adventure");
+    lcd.setCursor(0, 1);
+    lcd.print("Press Start to play");
+
     // Web server routes
     server.on("/", HTTP_GET, []() {
         server.send(200, "text/html", R"rawliteral(
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <title>ESP8266 LED Controller</title>
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
-                <style>
-                    body {
-                        font-family: 'Poppins', sans-serif;
-                        text-align: center;
-                        margin-top: 50px;
-                        background: url('https://images.unsplash.com/photo-1501856060201-66e39513e1f6') no-repeat center center fixed;
-                        background-size: cover;
-                        color: white;
-                        padding: 0;
-                        margin: 0;
-                    }
-                    h1 {
-                        font-size: 36px;
-                        color: #ff6347;
-                        margin-bottom: 20px;
-                    }
-                    .btn {
-                        padding: 18px 30px;
-                        font-size: 20px;
-                        margin: 15px;
-                        cursor: pointer;
-                        border-radius: 12px;
-                        border: none;
-                        transition: transform 0.3s ease;
-                        background-color: rgba(0, 0, 0, 0.5);
-                    }
-                    .btn:hover {
-                        transform: scale(1.1);
-                    }
-                    .on {
-                        background-color: #32cd32;
-                        color: white;
-                    }
-                    .off {
-                        background-color: #ff4500;
-                        color: white;
-                    }
-                    .status {
-                        font-size: 22px;
-                        margin-top: 20px;
-                        color: #4682b4;
-                    }
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Mario's Epic Adventure</title>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+            <style>
+                body { font-family: Arial, sans-serif; text-align: center; background-color: #f4f4f4; }
+                h1 { color: #ff0000; text-shadow: 3px 3px #ffd700, -3px -3px #0000ff; font-size: 36px; font-weight: bold; }
+                canvas {
+                    border: 1px solid #333;
+                    width: 100%;
+                    max-width: 360px; /* Limit max width for larger screens */
+                    height: auto; /* Maintain aspect ratio */
+                    touch-action: none; /* Prevents pinch-zoom and double-tap zoom */
+                }
+                .btn { padding: 10px 20px; font-size: 16px; cursor: pointer; }
+                #gameStatus { margin-top: 15px; font-weight: bold; color: #d32f2f; }
+            </style>
+        </head>
+        <body>
+            <h2>Mario's Epic Adventure</h2>
+            <canvas id="gameCanvas" width="360" height="540"></canvas>
+            <br>
+            <button class="btn" id="startButton" onclick="startGame()">Start Game</button>
+            <button class="btn" id="jumpButton" onclick="jump()" disabled>Jump</button>
+            <button class="btn" id="stopButton" onclick="stopGame()" disabled>Stop Game</button>
+            <div id="gameStatus">
+                <p>Score: <span id="score">0</span></p>
+                <p id="gameState">Game Over</p>
+            </div>
+            <script>
+    document.addEventListener('dblclick', function(event) {
+        event.preventDefault(); // Prevents double-click zoom
+    }, { passive: false });
 
-                    @media (max-width: 768px) {
-                        h1 {
-                            font-size: 30px;
-                        }
-                        .btn {
-                            width: 80%;
-                            font-size: 18px;
-                            padding: 15px 25px;
-                        }
-                        .status {
-                            font-size: 20px;
-                        }
-                    }
+    let canvas = document.getElementById('gameCanvas');
+    let ctx = canvas.getContext('2d');
+    let mario = { x: 50, y: 150, width: 30, height: 30, color: 'blue', jumping: false };
+    let obstacle = { x: 480, y: 150, width: 30, height: 30, color: 'green' };
+    let score = 0;
+    let gameInterval;
+    let gameActive = false;
 
-                    @media (max-width: 480px) {
-                        h1 {
-                            font-size: 26px;
-                        }
-                        .btn {
-                            width: 80%;
-                            font-size: 16px;
-                            padding: 12px 22px;
-                        }
-                        .status {
-                            font-size: 18px;
-                        }
+    function startGame() {
+        gameActive = true;
+        score = 0;
+        mario.y = 150;
+        obstacle.x = 480;
+        document.getElementById('score').textContent = score;
+        document.getElementById('gameState').textContent = 'Game On';
+        document.getElementById('startButton').disabled = true;
+        document.getElementById('jumpButton').disabled = false;
+        document.getElementById('stopButton').disabled = false;
+        clearInterval(gameInterval);
+        gameInterval = setInterval(gameLoop, 1000 / 60);
+    }
+
+    function stopGame() {
+        gameActive = false;
+        clearInterval(gameInterval);
+        document.getElementById('startButton').disabled = false;
+        document.getElementById('jumpButton').disabled = true;
+        document.getElementById('stopButton').disabled = true;
+        document.getElementById('gameState').textContent = 'Game Over';
+    }
+
+    function jump() {
+        if (mario.jumping) return; // Prevents initiating another jump when already jumping
+        mario.jumping = true;
+        let peakHeight = 50; // the peak height of the jump
+        let jumpSpeed = 5; // how quickly Mario moves up
+        let initialY = mario.y; // remember initial y position to calculate peak
+        let jumpFrame = () => {
+            if (mario.y > initialY - peakHeight) {
+                mario.y -= jumpSpeed;
+                requestAnimationFrame(jumpFrame);
+            } else {
+                let fallFrame = () => {
+                    if (mario.y < initialY) {
+                        mario.y += jumpSpeed;
+                        requestAnimationFrame(fallFrame);
+                    } else {
+                        mario.jumping = false;
                     }
-                </style>
-            </head>
-            <body>
-                <h1>Welcome to the LED Controller!</h1>
-                <button class="btn on" onclick="toggleLED('on')">Light it Up!</button>
-                <button class="btn off" onclick="toggleLED('off')">Turn it Off!</button>
-                <div id="status" class="status">LED is Off</div>
-                <script>
-                    function toggleLED(state) {
-                        fetch('/' + state)
-                            .then(response => response.text())
-                            .then(text => {
-                                document.getElementById('status').innerHTML = text;
-                                if (state == 'on') {
-                                    document.getElementById('status').style.color = '#32cd32';
-                                } else {
-                                    document.getElementById('status').style.color = '#ff4500';
-                                }
-                            });
-                    }
-                </script>
-            </body>
-            </html>
+                };
+                requestAnimationFrame(fallFrame);
+            }
+        };
+        jumpFrame();
+    }
+
+    function drawMario(x, y) {
+        ctx.beginPath();
+        ctx.fillStyle = 'red'; // Cap and shirt
+        ctx.arc(x + 15, y, 10, 0, Math.PI * 2, true); // head
+        ctx.fillRect(x + 10, y + 10, 10, 10); // body
+        ctx.fillRect(x + 5, y - 10, 20, 10); // cap
+        ctx.fillStyle = 'blue'; // Overalls
+        ctx.fillRect(x + 10, y + 20, 10, 15); // legs
+        ctx.fill();
+
+        ctx.beginPath(); // Mustache and eyes
+        ctx.fillStyle = 'black';
+        ctx.arc(x + 10, y + 5, 2, 0, Math.PI * 2, true); // left eye
+        ctx.arc(x + 20, y + 5, 2, 0, Math.PI * 2, true); // right eye
+        ctx.fillRect(x + 8, y + 10, 14, 2); // mustache
+        ctx.fill();
+    }
+
+    function gameLoop() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        obstacle.x -= 2;
+        if (obstacle.x < 0) {
+            obstacle.x = 480;
+            score++;
+            document.getElementById('score').textContent = score;
+        }
+        if (mario.x < obstacle.x + obstacle.width &&
+            mario.x + mario.width > obstacle.x &&
+            mario.y < obstacle.y + obstacle.height &&
+            mario.y + mario.height > obstacle.y) {
+            stopGame();
+        }
+        drawMario(mario.x, mario.y); // Draw the character
+        ctx.fillStyle = obstacle.color;
+        ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+    }
+</script>
+
+        </body>
+        </html>
         )rawliteral");
-    });
-
-    server.on("/on", HTTP_GET, []() {
-        digitalWrite(LED_PIN, HIGH);
-        server.send(200, "text/plain", "Yay! The LED is shining bright! ✨");
-    });
-
-    server.on("/off", HTTP_GET, []() {
-        digitalWrite(LED_PIN, LOW);
-        server.send(200, "text/plain", "Aww, the LED is turned off. 😢");
     });
 
     server.begin();
@@ -146,4 +183,19 @@ void setup() {
 
 void loop() {
     server.handleClient();
-}
+    // Update LCD based on game status
+    if (!gameActive) {
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print("Mario's Epic Adventure");
+        lcd.setCursor(0, 1);
+        lcd.print("Game Over");
+    } else {
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print("Score: ");
+        lcd.print(score);
+        lcd.setCursor(0, 1);
+        lcd.print("Game On");
+    }
+} 
