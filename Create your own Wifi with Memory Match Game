@@ -1,0 +1,98 @@
+#include <ESP8266WiFi.h>
+#include <ESP8266WebServer.h>
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+
+#define BUTTON_PIN 0
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+ESP8266WebServer server(80);
+
+const char symbols[] = {'#', '*', '@', '&', '$'};
+char sequence[5];  // 4-character sequence + null terminator
+bool gameActive = false;
+
+void setup() {
+    pinMode(BUTTON_PIN, INPUT_PULLUP);
+    lcd.begin(); // For a 16x2 LCD display
+    lcd.backlight();
+
+    lcd.setCursor(0, 0);
+    lcd.print("Starting Wi-Fi...");
+
+    WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
+    WiFi.softAP("Memory Match Game");  // Wi-Fi setup must be before server.begin()
+    // Define Web Routes
+    server.on("/", HTTP_GET, []() {
+        String html = "<html><body>";
+        html += "<h1>Memory Match Game</h1>";
+        html += "<p>Enter the sequence shown on the LCD:</p>";
+        html += "<form action='/check' method='POST'>";
+        html += "<input type='text' name='guess'>";
+        html += "<input type='submit' value='Submit'>";
+        html += "</form></body></html>";
+        server.send(200, "text/html", html);
+    });
+
+    server.on("/check", HTTP_POST, []() {
+        String guess = server.arg("guess");
+        String correctSequence = String(sequence);
+        String message;
+
+        if (guess == correctSequence) {
+            message = "Correct! +1 Point";
+        } else {
+            message = "Game Over! Correct Seq: " + correctSequence;
+        }
+
+        server.send(200, "text/html", "<html><body><h1>" + message + "</h1></body></html>");
+        displayResult(message);
+    });
+
+    server.begin();
+
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Press to Start");
+}
+
+void loop() {
+    server.handleClient();
+
+    if (!gameActive && digitalRead(BUTTON_PIN) == LOW) {
+        startGame();
+    }
+}
+
+void startGame() {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Memorize...");
+
+    for (int i = 0; i < 4; i++) {
+        sequence[i] = symbols[random(0, sizeof(symbols))];
+        lcd.setCursor(i, 1);
+        lcd.print(sequence[i]);
+        delay(700);  
+        lcd.setCursor(i, 1);
+        lcd.print(" ");  // Clear symbol for challenge
+        delay(300);
+    }
+
+    sequence[4] = '\0';  // Null terminator for proper string handling
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Enter on Wi-Fi");
+    gameActive = true;
+}
+
+void displayResult(String message) {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print(message);
+    delay(3000);
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Press to Start");
+    gameActive = false;
+}
